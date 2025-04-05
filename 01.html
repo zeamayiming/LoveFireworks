@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Love Fireworks</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 5em;
+      color: red;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="text">I love you</div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const heartPath = [];
+    const tValues = Array.from({ length: 1000 }, (_, i) => (i / 999) * 2 * Math.PI);
+    tValues.forEach(t => {
+      const x = 16 * Math.pow(Math.sin(t), 3) * 10;
+      const y = (
+        13 * Math.cos(t) -
+        5 * Math.cos(2 * t) -
+        2 * Math.cos(3 * t) -
+        Math.cos(4 * t)
+      ) * 10;
+      heartPath.push({ x, y });
+    });
+
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 6;
+        this.vy = (Math.random() - 0.5) * 6;
+        this.color = color;
+        this.life = Math.random() * 30 + 30;
+        this.size = Math.random() * 3 + 2;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.05;
+        this.life--;
+        this.size *= 0.97;
+      }
+
+      draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    class Firework {
+      constructor() {
+        this.x = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+        this.y = canvas.height;
+        this.vy = -Math.random() * 7 - 8;
+        this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
+        this.exploded = false;
+        this.particles = [];
+      }
+
+      update() {
+        if (!this.exploded) {
+          this.y += this.vy;
+          this.vy += 0.2;
+          if (this.vy >= 0) {
+            this.explode();
+            return false;
+          }
+        }
+        return true;
+      }
+
+      explode() {
+        this.exploded = true;
+        heartPath.forEach(point => {
+          const px = this.x + point.x;
+          const py = this.y - point.y;
+          this.particles.push(new Particle(px, py, this.color));
+        });
+      }
+
+      draw(ctx) {
+        if (!this.exploded) {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = this.color;
+          ctx.fill();
+        } else {
+          this.particles.forEach(p => {
+            p.update();
+            p.draw(ctx);
+          });
+          this.particles = this.particles.filter(p => p.life > 0);
+        }
+      }
+    }
+
+    let fireworks = [];
+    let frame = 0;
+    const text = document.getElementById("text");
+
+    function animate() {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (Math.random() < 0.03) {
+        fireworks.push(new Firework());
+        showText();
+      }
+
+      fireworks.forEach((fw, i) => {
+        const active = fw.update();
+        fw.draw(ctx);
+        if (!active && fw.particles.length === 0) {
+          fireworks.splice(i, 1);
+        }
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    function showText() {
+      text.style.opacity = 1;
+      setTimeout(() => (text.style.opacity = 0), 3000);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
