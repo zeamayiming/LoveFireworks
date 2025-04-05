@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Love Fireworks</title>
+  <title>Custom Fireworks</title>
   <style>
     body {
       margin: 0;
-      background-color: black;
       overflow: hidden;
       font-family: sans-serif;
+      background-size: cover;
+      background-position: center;
     }
     canvas {
       display: block;
@@ -24,6 +25,35 @@
       opacity: 0;
       transition: opacity 1s ease-in-out;
       pointer-events: none;
+      text-shadow: 2px 2px 10px black;
+      z-index: 1;
+    }
+    #controlsToggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 10px;
+      color: white;
+      z-index: 2;
+      cursor: pointer;
+    }
+    #controls {
+      display: none;
+      position: absolute;
+      top: 60px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 10px;
+      color: white;
+      z-index: 2;
+    }
+    #controls input,
+    #controls select {
+      margin: 5px 0;
+      width: 100%;
     }
   </style>
 </head>
@@ -31,24 +61,107 @@
   <canvas id="canvas"></canvas>
   <div id="text">I love you</div>
 
+  <div id="controlsToggle">⚙️</div>
+  <div id="controls">
+    <label>顯示文字：</label>
+    <input type="text" id="textInput" placeholder="輸入文字" />
+
+    <label>文字顏色：</label>
+    <input type="color" id="textColorInput" />
+
+    <label>文字停留時間（毫秒）：</label>
+    <input type="number" id="textDurationInput" value="3000" min="500" step="500" />
+
+    <label>選擇煙火圖案：</label>
+    <select id="shapeSelect">
+      <option value="heart">愛心</option>
+      <option value="circle">圓形</option>
+      <option value="star">星星</option>
+    </select>
+
+    <label>選擇背景圖片：</label>
+    <input type="file" id="bgInput" accept="image/*" />
+
+    <label>煙火頻率（0-1）：</label>
+    <input type="number" id="fireworkFrequency" value="0.03" min="0" max="1" step="0.01" />
+  </div>
+
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const heartPath = [];
-    const tValues = Array.from({ length: 1000 }, (_, i) => (i / 999) * 2 * Math.PI);
-    tValues.forEach(t => {
-      const x = 16 * Math.pow(Math.sin(t), 3) * 10;
-      const y = (
-        13 * Math.cos(t) -
-        5 * Math.cos(2 * t) -
-        2 * Math.cos(3 * t) -
-        Math.cos(4 * t)
-      ) * 10;
-      heartPath.push({ x, y });
+    const text = document.getElementById("text");
+    const textInput = document.getElementById("textInput");
+    const textColorInput = document.getElementById("textColorInput");
+    const textDurationInput = document.getElementById("textDurationInput");
+    const shapeSelect = document.getElementById("shapeSelect");
+    const bgInput = document.getElementById("bgInput");
+    const controls = document.getElementById("controls");
+    const controlsToggle = document.getElementById("controlsToggle");
+    const fireworkFrequencyInput = document.getElementById("fireworkFrequency");
+
+    let currentBgUrl = null;
+    let fireworkFrequency = parseFloat(fireworkFrequencyInput.value);
+
+    controlsToggle.addEventListener("click", () => {
+      controls.style.display = controls.style.display === "none" ? "block" : "none";
     });
+
+    textInput.addEventListener("input", () => {
+      text.innerText = textInput.value;
+    });
+
+    textColorInput.addEventListener("input", () => {
+      text.style.color = textColorInput.value;
+    });
+
+    fireworkFrequencyInput.addEventListener("input", () => {
+      const val = parseFloat(fireworkFrequencyInput.value);
+      if (!isNaN(val) && val >= 0 && val <= 1) {
+        fireworkFrequency = val;
+      }
+    });
+
+    bgInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          document.body.style.backgroundImage = "none";
+          currentBgUrl = evt.target.result;
+          document.body.style.backgroundImage = `url(${currentBgUrl})`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function generateShape(shape) {
+      const points = [];
+      const count = 1000;
+      for (let i = 0; i < count; i++) {
+        const t = (i / count) * 2 * Math.PI;
+        if (shape === "heart") {
+          const x = 16 * Math.pow(Math.sin(t), 3) * 10;
+          const y = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * 10;
+          points.push({ x, y });
+        } else if (shape === "circle") {
+          const radius = 100;
+          const x = Math.cos(t) * radius;
+          const y = Math.sin(t) * radius;
+          points.push({ x, y });
+        } else if (shape === "star") {
+          const outer = 100;
+          const inner = 40;
+          const angle = i % 2 === 0 ? outer : inner;
+          const x = Math.cos(t) * angle;
+          const y = Math.sin(t) * angle;
+          points.push({ x, y });
+        }
+      }
+      return points;
+    }
 
     class Particle {
       constructor(x, y, color) {
@@ -85,6 +198,7 @@
         this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
         this.exploded = false;
         this.particles = [];
+        this.shape = generateShape(shapeSelect.value);
       }
 
       update() {
@@ -101,7 +215,7 @@
 
       explode() {
         this.exploded = true;
-        heartPath.forEach(point => {
+        this.shape.forEach(point => {
           const px = this.x + point.x;
           const py = this.y - point.y;
           this.particles.push(new Particle(px, py, this.color));
@@ -125,14 +239,11 @@
     }
 
     let fireworks = [];
-    let frame = 0;
-    const text = document.getElementById("text");
-
     function animate() {
       ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      if (Math.random() < 0.03) {
+      if (Math.random() < fireworkFrequency) {
         fireworks.push(new Firework());
         showText();
       }
@@ -150,7 +261,8 @@
 
     function showText() {
       text.style.opacity = 1;
-      setTimeout(() => (text.style.opacity = 0), 3000);
+      const duration = parseInt(textDurationInput.value) || 3000;
+      setTimeout(() => (text.style.opacity = 0), duration);
     }
 
     animate();
