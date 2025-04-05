@@ -9,24 +9,28 @@
       margin: 0;
       overflow: hidden;
       font-family: sans-serif;
+      background-color: black;
       background-size: cover;
       background-position: center;
+      background-repeat: no-repeat;
+      width: 100vw;
+      height: 100vh;
     }
     canvas {
       display: block;
-    }
-    #text {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 5em;
+      top: 0;
+      left: 0;
+    }
+    .text-message {
+      position: absolute;
+      font-size: 3em;
       color: red;
       opacity: 0;
       transition: opacity 1s ease-in-out;
       pointer-events: none;
       text-shadow: 2px 2px 10px black;
-      z-index: 1;
+      z-index: 10;
     }
     #controlsToggle {
       position: absolute;
@@ -36,7 +40,7 @@
       padding: 10px;
       border-radius: 10px;
       color: white;
-      z-index: 2;
+      z-index: 20;
       cursor: pointer;
     }
     #controls {
@@ -48,78 +52,146 @@
       padding: 10px;
       border-radius: 10px;
       color: white;
-      z-index: 2;
+      z-index: 20;
+      max-width: 80%;
+      max-height: 80vh;
+      overflow-y: auto;
     }
     #controls input,
     #controls select {
       margin: 5px 0;
       width: 100%;
     }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    #backgroundContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background-color: black;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    #currentBg {
+      height: 50px; 
+      background-color: #000; 
+      margin: 5px 0; 
+      border-radius: 5px;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-size: cover;
+      background-position: center;
+    }
   </style>
 </head>
 <body>
+  <div id="backgroundContainer"></div>
   <canvas id="canvas"></canvas>
-  <div id="text">I love you</div>
+  <div id="textContainer"></div>
 
   <div id="controlsToggle">⚙️</div>
   <div id="controls">
     <label>顯示文字：</label>
-    <input type="text" id="textInput" placeholder="輸入文字" />
+    <input type="text" id="textInput" placeholder="輸入文字" value="我愛你" />
 
     <label>文字顏色：</label>
-    <input type="color" id="textColorInput" />
+    <input type="color" id="textColorInput" value="#ff0000" />
 
     <label>文字停留時間（毫秒）：</label>
     <input type="number" id="textDurationInput" value="3000" min="500" step="500" />
+    
+    <label>同時顯示文字數量：</label>
+    <input type="number" id="textCountInput" value="1" min="1" max="10" />
 
     <label>選擇煙火圖案：</label>
     <select id="shapeSelect">
       <option value="heart">愛心</option>
       <option value="circle">圓形</option>
       <option value="star">星星</option>
+      <option value="flower">花朵</option>
+      <option value="butterfly">蝴蝶</option>
+      <option value="spiral">螺旋</option>
+      <option value="diamond">鑽石</option>
     </select>
 
     <label>選擇背景圖片：</label>
     <input type="file" id="bgInput" accept="image/*" />
+    
+    <label>目前背景：</label>
+    <div id="currentBg">無背景</div>
+    <button id="clearBgBtn" style="width: 100%; margin-top: 5px;">清除背景</button>
 
-    <label>煙火頻率（0-1）：</label>
-    <input type="number" id="fireworkFrequency" value="0.03" min="0" max="1" step="0.01" />
+    <label>煙火頻率（0-0.5）：</label>
+    <input type="number" id="fireworkFrequency" value="0.03" min="0" max="0.5" step="0.01" />
+    
+    <label>螢幕方向：</label>
+    <select id="orientationSelect">
+      <option value="auto">自動</option>
+      <option value="portrait">直向</option>
+      <option value="landscape">橫向</option>
+    </select>
   </div>
 
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const text = document.getElementById("text");
+    const textContainer = document.getElementById("textContainer");
     const textInput = document.getElementById("textInput");
     const textColorInput = document.getElementById("textColorInput");
     const textDurationInput = document.getElementById("textDurationInput");
+    const textCountInput = document.getElementById("textCountInput");
     const shapeSelect = document.getElementById("shapeSelect");
     const bgInput = document.getElementById("bgInput");
+    const currentBg = document.getElementById("currentBg");
+    const clearBgBtn = document.getElementById("clearBgBtn");
     const controls = document.getElementById("controls");
     const controlsToggle = document.getElementById("controlsToggle");
     const fireworkFrequencyInput = document.getElementById("fireworkFrequency");
+    const orientationSelect = document.getElementById("orientationSelect");
+    const backgroundContainer = document.getElementById("backgroundContainer");
+
+    // 設定初始畫布大小
+    function setCanvasSize() {
+      const orientation = orientationSelect.value;
+      if (orientation === "landscape" || (orientation === "auto" && window.innerWidth > window.innerHeight)) {
+        // 橫向
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      } else {
+        // 直向
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+    }
+
+    setCanvasSize();
+    window.addEventListener("resize", setCanvasSize);
+    orientationSelect.addEventListener("change", setCanvasSize);
 
     let currentBgUrl = null;
     let fireworkFrequency = parseFloat(fireworkFrequencyInput.value);
+    let activeTextElements = [];
+    let textCount = parseInt(textCountInput.value);
 
     controlsToggle.addEventListener("click", () => {
       controls.style.display = controls.style.display === "none" ? "block" : "none";
     });
 
-    textInput.addEventListener("input", () => {
-      text.innerText = textInput.value;
-    });
-
-    textColorInput.addEventListener("input", () => {
-      text.style.color = textColorInput.value;
+    textCountInput.addEventListener("input", () => {
+      textCount = parseInt(textCountInput.value) || 1;
     });
 
     fireworkFrequencyInput.addEventListener("input", () => {
       const val = parseFloat(fireworkFrequencyInput.value);
-      if (!isNaN(val) && val >= 0 && val <= 1) {
+      if (!isNaN(val) && val >= 0 && val <= 0.5) {
         fireworkFrequency = val;
       }
     });
@@ -129,12 +201,25 @@
       if (file) {
         const reader = new FileReader();
         reader.onload = function(evt) {
-          document.body.style.backgroundImage = "none";
           currentBgUrl = evt.target.result;
-          document.body.style.backgroundImage = `url(${currentBgUrl})`;
+          // 使用專用的背景容器顯示背景
+          backgroundContainer.style.backgroundImage = `url(${currentBgUrl})`;
+          // 更新預覽
+          currentBg.textContent = file.name;
+          currentBg.style.backgroundImage = `url(${currentBgUrl})`;
+          currentBg.style.backgroundSize = "cover";
         };
         reader.readAsDataURL(file);
       }
+    });
+
+    // 清除背景按鈕事件
+    clearBgBtn.addEventListener("click", () => {
+      currentBgUrl = null;
+      backgroundContainer.style.backgroundImage = "none";
+      currentBg.style.backgroundImage = "none";
+      currentBg.textContent = "無背景";
+      currentBg.style.backgroundColor = "#000";
     });
 
     function generateShape(shape) {
@@ -157,6 +242,26 @@
           const angle = i % 2 === 0 ? outer : inner;
           const x = Math.cos(t) * angle;
           const y = Math.sin(t) * angle;
+          points.push({ x, y });
+        } else if (shape === "flower") {
+          const radius = 80 * (1 + 0.5 * Math.sin(6 * t));
+          const x = Math.cos(t) * radius;
+          const y = Math.sin(t) * radius;
+          points.push({ x, y });
+        } else if (shape === "butterfly") {
+          const r = Math.exp(Math.cos(t)) - 2 * Math.cos(4 * t) + Math.pow(Math.sin(t / 12), 5);
+          const x = Math.sin(t) * r * 40;
+          const y = Math.cos(t) * r * 40;
+          points.push({ x, y });
+        } else if (shape === "spiral") {
+          const radius = t * 10;
+          const x = Math.cos(t * 8) * radius;
+          const y = Math.sin(t * 8) * radius;
+          points.push({ x, y });
+        } else if (shape === "diamond") {
+          const r = 80;
+          const x = r * Math.cos(t) * (Math.cos(t) > 0 ? 1 : 1.5);
+          const y = r * Math.sin(t) * (Math.sin(t) > 0 ? 1 : 1.5);
           points.push({ x, y });
         }
       }
@@ -238,6 +343,44 @@
       }
     }
 
+    function createTextElement() {
+      // 檢查是否已達到最大數量
+      if (activeTextElements.length >= textCount) {
+        return;
+      }
+      
+      const text = document.createElement("div");
+      text.className = "text-message";
+      text.textContent = textInput.value || "我愛你";
+      text.style.color = textColorInput.value;
+      
+      // 隨機位置
+      const posX = Math.random() * (canvas.width - 200) + 100;
+      const posY = Math.random() * (canvas.height - 200) + 100;
+      text.style.left = posX + "px";
+      text.style.top = posY + "px";
+      
+      textContainer.appendChild(text);
+      activeTextElements.push(text);
+      
+      // 顯示文字
+      setTimeout(() => {
+        text.style.opacity = 1;
+      }, 10);
+      
+      // 文字消失
+      const duration = parseInt(textDurationInput.value) || 3000;
+      setTimeout(() => {
+        text.style.opacity = 0;
+        setTimeout(() => {
+          if (textContainer.contains(text)) {
+            textContainer.removeChild(text);
+          }
+          activeTextElements = activeTextElements.filter(el => el !== text);
+        }, 1000);
+      }, duration);
+    }
+
     let fireworks = [];
     function animate() {
       ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
@@ -245,7 +388,7 @@
 
       if (Math.random() < fireworkFrequency) {
         fireworks.push(new Firework());
-        showText();
+        createTextElement();
       }
 
       fireworks.forEach((fw, i) => {
@@ -257,12 +400,6 @@
       });
 
       requestAnimationFrame(animate);
-    }
-
-    function showText() {
-      text.style.opacity = 1;
-      const duration = parseInt(textDurationInput.value) || 3000;
-      setTimeout(() => (text.style.opacity = 0), duration);
     }
 
     animate();
